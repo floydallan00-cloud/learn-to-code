@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scientific Calculator</title>
+  <style>
+    :root{--bg:#0b1220;--panel:#0f1a2b;--accent:#4fc3f7;--muted:#9aa9bd;--key:#172231}
+    body{font-family:system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;background:var(--bg);color:#e6eef6;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .calc{width:360px;background:var(--panel);border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(2,6,23,.7)}
+    .display{background:#071226;color:#dff6ff;padding:12px;border-radius:8px;font-size:1.25rem;word-break:break-all;min-height:48px}
+    .row{display:flex;gap:8px;margin-top:8px}
+    button{flex:1;padding:12px;border-radius:8px;border:0;background:var(--key);color:#dbeefb;font-weight:600;font-size:1rem;cursor:pointer}
+    button.fn{background:#0b2a3d;color:var(--accent)}
+    button.op{background:#173147}
+    .wide{flex:2}
+    .controls{display:flex;gap:8px;align-items:center;margin-top:10px}
+    .small{font-size:.9rem;color:var(--muted)}
+    .mode-toggle{margin-left:auto}
+  </style>
+</head>
+<body>
+  <main class="calc" role="application" aria-label="Scientific calculator">
+    <div id="display" class="display" aria-live="polite">0</div>
+
+    <div class="row">
+      <button class="fn" data-val="sin(">sin</button>
+      <button class="fn" data-val="cos(">cos</button>
+      <button class="fn" data-val="tan(">tan</button>
+      <button class="op" data-val="(">(</button>
+    </div>
+
+    <div class="row">
+      <button class="fn" data-val="asin(">asin</button>
+      <button class="fn" data-val="acos(">acos</button>
+      <button class="fn" data-val="atan(">atan</button>
+      <button class="op" data-val=")">)</button>
+    </div>
+
+    <div class="row">
+      <button data-val="7">7</button>
+      <button data-val="8">8</button>
+      <button data-val="9">9</button>
+      <button class="op" data-val="/">÷</button>
+    </div>
+
+    <div class="row">
+      <button data-val="4">4</button>
+      <button data-val="5">5</button>
+      <button data-val="6">6</button>
+      <button class="op" data-val="*">×</button>
+    </div>
+
+    <div class="row">
+      <button data-val="1">1</button>
+      <button data-val="2">2</button>
+      <button data-val="3">3</button>
+      <button class="op" data-val="-">−</button>
+    </div>
+
+    <div class="row">
+      <button data-val="0">0</button>
+      <button data-val=".">.</button>
+      <button class="op" data-val="**">^</button>
+      <button class="op" data-val="+">+</button>
+    </div>
+
+    <div class="row">
+      <button class="fn" data-val="sqrt(">sqrt</button>
+      <button class="fn" data-val="log(">log</button>
+      <button class="fn" data-val="log10(">log10</button>
+      <button class="fn" data-val="exp(">exp</button>
+    </div>
+
+    <div class="row">
+      <button class="fn" data-val="pow(">pow</button>
+      <button class="fn" data-val="factorial(">fact</button>
+      <button data-val="pi">π</button>
+      <button data-val="e">e</button>
+    </div>
+
+    <div class="row">
+      <button id="clear">C</button>
+      <button id="back">←</button>
+      <button id="ans" class="wide">Ans</button>
+      <button id="equals" class="op">=</button>
+    </div>
+
+    <div class="controls small">
+      <div>Mode:</div>
+      <label class="mode-toggle"><input type="radio" name="mode" value="rad" checked> rad</label>
+      <label class="mode-toggle"><input type="radio" name="mode" value="deg"> deg</label>
+      <div style="margin-left:auto" class="small">Keyboard supported: numbers, +-*/().^ and Enter</div>
+    </div>
+  </main>
+
+  <script>
+    // Minimal safe evaluator: create a Function with a controlled set of helpers.
+    (function(){
+      const display = document.getElementById('display');
+      let expr = '';
+      let lastAns = null;
+
+      function updateDisplay(){
+        display.textContent = expr || (lastAns === null ? '0' : String(lastAns));
+      }
+
+      function sanitize(input){
+        // Allow digits, spaces, operators, parentheses, dot, comma, letters
+        // Disallow semicolons, braces, square brackets and other punctuation
+        if (/[^0-9a-zA-Z_\s+\-*/%()\.,\^\*]/.test(input)){
+          throw new Error('Invalid characters in expression');
+        }
+      }
+
+      function factorial(n){
+        if (n < 0 || Math.floor(n) !== n) throw new Error('factorial only for non-negative integers');
+        let r = 1;
+        for(let i=2;i<=n;i++) r*=i;
+        return r;
+      }
+
+      function log(x, base){
+        if (base === undefined) return Math.log(x);
+        return Math.log(x) / Math.log(base);
+      }
+
+      function pow(x,y){ return Math.pow(x,y); }
+
+      function buildEvaluator(deg){
+        // wrappers for trig that account for degree mode
+        function wrap(fn){
+          return function(x){
+            return fn(x);
+          };
+        }
+        const trigWrap = (f) => (x) => f(deg ? x * Math.PI/180 : x);
+
+        // Provide a list of functions we accept and pass them as parameters
+        const helpers = {
+          sin: trigWrap(Math.sin), cos: trigWrap(Math.cos), tan: trigWrap(Math.tan),
+          asin: deg ? (x=>Math.asin(x)*180/Math.PI) : Math.asin,
+          acos: deg ? (x=>Math.acos(x)*180/Math.PI) : Math.acos,
+          atan: deg ? (x=>Math.atan(x)*180/Math.PI) : Math.atan,
+          sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh,
+          log: log, log10: Math.log10 || (x=>Math.log(x)/Math.LN10), exp: Math.exp,
+          sqrt: Math.sqrt, pow: pow, factorial: factorial,
+          pi: Math.PI, e: Math.E
+        };
+
+        return {helpers, names:Object.keys(helpers)};
+      }
+
+      function evaluateExpression(input){
+        sanitize(input);
+        // replace caret ^ with ** for exponentiation convenience
+        input = input.replace(/\^/g, '**');
+
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        const {helpers,names} = buildEvaluator(mode === 'deg');
+
+        // Construct parameter list and args for Function
+        const params = names.join(',');
+        const args = names.map(n=>helpers[n]);
+
+        // Create function body that returns the expression
+        const body = 'return (' + input + ');';
+        let fn;
+        try{
+          fn = new Function(...names, body);
+        }catch(e){
+          throw new Error('Syntax error');
+        }
+
+        // Call the function with our helper values
+        try{
+          const result = fn(...args);
+          if (typeof result === 'number' && !isFinite(result)) throw new Error('Result is not finite');
+          return result;
+        }catch(e){
+          throw new Error(e.message || 'Evaluation error');
+        }
+      }
+
+      // Button wiring
+      document.querySelectorAll('button[data-val]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          expr += btn.getAttribute('data-val');
+          updateDisplay();
+        });
+      });
+
+      document.getElementById('clear').addEventListener('click', ()=>{ expr=''; updateDisplay(); });
+      document.getElementById('back').addEventListener('click', ()=>{ expr = expr.slice(0,-1); updateDisplay(); });
+      document.getElementById('ans').addEventListener('click', ()=>{ if(lastAns!==null) expr += String(lastAns); updateDisplay(); });
+      document.getElementById('equals').addEventListener('click', ()=>{
+        try{
+          const res = evaluateExpression(expr || String(lastAns || 0));
+          lastAns = res;
+          expr = ''+res;
+          updateDisplay();
+        }catch(e){
+          display.textContent = 'Error: ' + e.message;
+        }
+      });
+
+      // keyboard support
+      window.addEventListener('keydown', (ev)=>{
+        if (ev.key === 'Enter'){
+          ev.preventDefault();
+          document.getElementById('equals').click();
+          return;
+        }
+        if (ev.key === 'Backspace'){
+          ev.preventDefault();
+          document.getElementById('back').click();
+          return;
+        }
+        // allowed simple keys
+        if (/^[0-9+\-*/().,]$/.test(ev.key)){
+          expr += ev.key;
+          updateDisplay();
+        }
+        if (ev.key === '^'){
+          expr += '**'; updateDisplay();
+        }
+      });
+
+      // initial
+      updateDisplay();
+    })();
+  </script>
+</body>
+</html>
